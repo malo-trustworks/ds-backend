@@ -18,10 +18,12 @@ COPY maven_settings_security_relocation.xml /root/.m2/settings-security.xml
 
 # Build the project using a BuildKit cache mount for Maven dependencies.
 # This prevents Maven from downloading the internet on every single build.
+# The maven_settings secret is optional: without it Maven uses its defaults (public repositories only).
 RUN --mount=type=secret,id=maven_settings \
     --mount=type=secret,id=maven_settings_security \
     --mount=type=cache,target=/root/.m2/repository \
-    mvn --settings "/run/secrets/maven_settings" clean install -DskipTests
+    if [ -f /run/secrets/maven_settings ]; then SETTINGS="--settings /run/secrets/maven_settings"; fi; \
+    mvn $SETTINGS clean install -DskipTests
 
 
 # STAGE 2: Runtime for ds-storage
