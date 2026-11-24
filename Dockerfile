@@ -19,9 +19,18 @@ COPY maven_settings_security_relocation.xml /root/.m2/settings-security.xml
 # Build the project using a BuildKit cache mount for Maven dependencies.
 # This prevents Maven from downloading the internet on every single build.
 # The maven_settings secret is optional: without it Maven uses its defaults (public repositories only).
+# LOCAL_PARENT_POM=true (set by docker-no-secrets.yml) installs the copy of sbprojects-parent from
+# pom-local-parent.xml into the local Maven repository first, so it does not have to come from the
+# internal Nexus. Normal builds fetch the real parent from Nexus.
+# The install runs from /tmp (no pom.xml there), otherwise Maven tries to load the project,
+# and with it the parent, before installing it.
+ARG LOCAL_PARENT_POM=false
 RUN --mount=type=secret,id=maven_settings \
     --mount=type=secret,id=maven_settings_security \
     --mount=type=cache,target=/root/.m2/repository \
+    if [ "$LOCAL_PARENT_POM" = "true" ]; then \
+      (cd /tmp && mvn -B -q install:install-file -Dfile=/build/pom-local-parent.xml -DpomFile=/build/pom-local-parent.xml -Dpackaging=pom) || exit 1; \
+    fi; \
     if [ -f /run/secrets/maven_settings ]; then SETTINGS="--settings /run/secrets/maven_settings"; fi; \
     mvn $SETTINGS clean install -DskipTests
 
